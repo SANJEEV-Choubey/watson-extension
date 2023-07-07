@@ -1,0 +1,87 @@
+{
+  "info": {
+    "title": "LLM Extension",
+    "version": "1.0"
+  },
+  "tags": [],
+  "servers": [
+    {
+      "description": "Code Engine deployment",
+      "url": "https://{appname}.{projectid}.{region}.codeengine.appdomain.cloud",
+      "variables": {
+        "appname": {
+          "default": "myapp",
+          "description": "application name"
+        },
+        "projectid": {
+          "default": "projectid",
+          "description": "the Code Engine project ID"
+        },
+        "region": {
+          "default": "us-south",
+          "description": "the deployment region, e.g., us-south"
+        }
+      }
+    },
+    {
+      "description": "local test",
+      "url": "http://127.0.0.1:{port}",
+      "variables": {
+        "port": {
+          "default": "5000",
+          "description": "local port to use"
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/query": {
+      "get": {
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful response"
+          }
+        },
+        "summary": "It will return o/p after each 30 sec if it is not fully processed.",
+        "description": "```"
+      },
+      "post": {
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful response"
+          }
+        },
+        "summary": "User query will be processed"
+      }
+    },
+    "/write": {
+      "post": {
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful response"
+          }
+        },
+        "summary": "Get the doc path , download and save it and then call om's function with downloaded path, and then clear the volume."
+      }
+    }
+  },
+  "openapi": "3.0.3"
+}
