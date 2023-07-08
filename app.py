@@ -52,6 +52,7 @@ app.config['SERVERS'] = [
 ]
 
 # @app.spec_processor
+@app.output({}, 600)
 @app.get('/query')
 # @app.doc(tags=['Hello'])
 def say_hello():
