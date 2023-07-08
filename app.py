@@ -66,6 +66,7 @@ def say_hello():
 
 # @app.spec_processor
 @app.post('/query')
+@app.input({'confirmation': Boolean(load_default=False)}, location='query')
 # @app.doc(tags=['Hello'])
 def input_query(query):
     
@@ -84,7 +85,7 @@ def input_query(query):
     return {'message': 'Thank you for your query, watson custom extension will provodie you response.'}
 
 
-@app.input({'confirmation': Boolean(load_default=False)}, location='query')
+@app.input({'confirmation': Boolean(load_default=False)}, location='path')
 @app.post('/write')
 def write_doc(path):
     '''
