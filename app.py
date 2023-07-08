@@ -4,6 +4,8 @@ from apiflask.validators import Length, OneOf
 from apiflask import APIFlask, Schema, HTTPTokenAuth, PaginationSchema, pagination_builder, abort
 from apiflask.fields import Integer, String, Boolean, Date, List, Nested
 import os
+from apiflask.validators import Length, Range
+
 # set openapi.info.title and openapi.info.version
 app = APIFlask(__name__,
                title='LLM Extension', 
@@ -52,22 +54,50 @@ app.config['SERVERS'] = [
     }
 ]
 
-# @app.spec_processor
-@app.output({}, 600)
+
+# the Python output for Events
+class QueryOutSchema(Schema):
+    eid = Integer()
+    shortname = String()
+    location = String()
+    begindate = Date()
+    enddate = Date()
+    contact = String()
+
+# the Python input for Events
+class QueryInSchema(Schema):
+    shortname = String(required=True, validate=Length(0, 20))
+    location = String(required=True, validate=Length(0, 60))
+    begindate = Date(required=True)
+    enddate = Date(required=True)
+    contact = String(required=True, validate=Length(0, 255))
+
+# use with pagination
+class QuerySchema(Schema):
+    page = Integer(load_default=1)
+    per_page = Integer(load_default=20, validate=Range(max=30))
+
+class QueryOutPutSchema(Schema):
+    events = List(Nested(QueryOutSchema))
+    pagination = Nested(PaginationSchema)
+
+
+
+response='Returning values for provided query'
+@app.output(QueryOutSchema)
 @app.get('/query')
-# @app.doc(tags=['Hello'])
 def say_hello():
     """It will return o/p after each 30 sec if it is not fully processed.
     ```
     """
-    return {'message': 'Thank you for qurying, you will be reciving output after each 30sec till all response doesnot get over.'}
+    
+    return QueryOutSchema
 
 
 
 # @app.spec_processor
 @app.post('/query')
-@app.input({'confirmation': Boolean(load_default=False)}, location='query')
-# @app.doc(tags=['Hello'])
+@app.input({'confirmation': String(load_default="")}, location='query')
 def input_query(query):
     
     """
@@ -85,7 +115,7 @@ def input_query(query):
     return {'message': 'Thank you for your query, watson custom extension will provodie you response.'}
 
 
-@app.input({'confirmation': Boolean(load_default=False)}, location='path')
+@app.input({'confirmation': String(load_default="")}, location='path')
 @app.post('/write')
 def write_doc(path):
     '''
