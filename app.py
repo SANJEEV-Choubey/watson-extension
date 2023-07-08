@@ -2,6 +2,7 @@ from apiflask import APIFlask
 from apiflask.fields import Integer, String
 from apiflask.validators import Length, OneOf
 from apiflask import APIFlask, Schema, HTTPTokenAuth, PaginationSchema, pagination_builder, abort
+from apiflask.fields import Integer, String, Boolean, Date, List, Nested
 import os
 # set openapi.info.title and openapi.info.version
 app = APIFlask(__name__,
@@ -52,6 +53,7 @@ app.config['SERVERS'] = [
 ]
 
 # @app.spec_processor
+@app.output({}, 600)
 @app.get('/query')
 # @app.doc(tags=['Hello'])
 def say_hello():
@@ -82,7 +84,7 @@ def input_query(query):
     return {'message': 'Thank you for your query, watson custom extension will provodie you response.'}
 
 
-
+@app.input({'confirmation': Boolean(load_default=False)}, location='query')
 @app.post('/write')
 def write_doc(path):
     '''
