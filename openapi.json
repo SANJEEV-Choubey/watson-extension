@@ -35,7 +35,7 @@
     }
   ],
   "paths": {
-    "/query": {
+    "/": {
       "get": {
         "parameters": [],
         "responses": {
@@ -48,17 +48,120 @@
             "description": "Successful response"
           }
         },
+        "summary": "Greeting",
+        "description": "health check"
+      }
+    },
+    "/query": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "per_page",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 30
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventsOut"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
         "summary": "It will return o/p after each 30 sec if it is not fully processed.",
         "description": "```"
       },
+      "post": {
+        "parameters": [],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventOut"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "summary": "Insert a new event record",
+        "description": "Insert a new event record with the given attributes. Its new EID is returned.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventIn"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/upload-file": {
+      "post": {
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful response"
+          }
+        },
+        "summary": "Upload File"
+      }
+    },
+    "/database/recreate": {
       "post": {
         "parameters": [
           {
             "in": "query",
             "name": "confirmation",
             "schema": {
-              "type": "string",
-              "default": ""
+              "type": "boolean",
+              "default": false
             },
             "required": false
           }
@@ -72,7 +175,7 @@
             },
             "description": "Successful response"
           },
-          "422": {
+          "400": {
             "content": {
               "application/json": {
                 "schema": {
@@ -83,23 +186,8 @@
             "description": "Validation error"
           }
         },
-        "summary": "User query will be processed"
-      }
-    },
-    "/write": {
-      "post": {
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful response"
-          }
-        },
-        "summary": "Get the doc path , download and save it and then call om's function with downloaded path, and then clear the volume."
+        "summary": "Recreate the database schema",
+        "description": "Recreate the database schema and insert sample data.\nRequest must be confirmed by passing query parameter."
       }
     }
   },
@@ -129,6 +217,90 @@
           }
         },
         "type": "object"
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "per_page": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pages": {
+            "type": "integer"
+          },
+          "last": {
+            "type": "string",
+            "format": "url"
+          },
+          "first": {
+            "type": "string",
+            "format": "url"
+          },
+          "current": {
+            "type": "string",
+            "format": "url"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "next": {
+            "type": "string",
+            "format": "url"
+          },
+          "prev": {
+            "type": "string",
+            "format": "url"
+          }
+        }
+      },
+      "EventOut": {
+        "type": "object",
+        "properties": {
+          "qid": {
+            "type": "integer"
+          },
+          "llmQuery": {
+            "type": "string"
+          },
+          "response": {
+            "type": "string"
+          }
+        }
+      },
+      "EventsOut": {
+        "type": "object",
+        "properties": {
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventOut"
+            }
+          }
+        }
+      },
+      "EventIn": {
+        "type": "object",
+        "properties": {
+          "llmQuery": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 2000
+          },
+          "response": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "llmQuery",
+          "response"
+        ]
       }
     }
   }
