@@ -14,6 +14,7 @@ from genai.model import Model
 from genai.schemas import GenerateParams
 from genai.extensions.langchain import LangChainInterface
 from datasets import load_dataset
+from langchain.text_splitter import CharacterTextSplitter
 
 load_dotenv()
 api_key = os.getenv("GENAI_KEY", None) 
@@ -34,6 +35,7 @@ INDEX_NAME = "wiki"
 
 def get_llm() -> LLM:
     langchain_model = LangChainInterface(model="google/flan-t5-xxl", params=params, credentials=creds)
+    return langchain_model
 
 def get_embeddings() -> Embeddings:
     # TODO - work around rate limits for embedding providers
@@ -59,18 +61,26 @@ def get_embeddings() -> Embeddings:
 #     return None
 
 def get_documents() -> List[Document]:
-    docs = load_dataset("Cohere/wikipedia-22-12-simple-embeddings", split="train")
-    redis_client = redis.from_url(REDIS_URL)
-    pipe = redis_client.pipeline()
+    from langchain.document_loaders import TextLoader
+
+    loader = TextLoader("do285-4.6-student-guide.pdf")
+    documents = loader.load()
+    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+    docs = text_splitter.split_documents(documents)
+    return docs
+
+    # docs = load_dataset("Cohere/wikipedia-22-12-simple-embeddings", split="train")
+    # redis_client = redis.from_url(REDIS_URL)
+    # pipe = redis_client.pipeline()
  
-    index = 0
-    for doc in docs:
-        pipe.json().set(f"wiki:{doc['id']}", '$', doc)
-        if index % 500 == 0:
-            pipe.execute()
-        index += 1
+    # index = 0
+    # for doc in docs:
+    #     pipe.json().set(f"wiki:{doc['id']}", '$', doc)
+    #     if index % 500 == 0:
+    #         pipe.execute()
+    #     index += 1
     
-    pipe.execute()
+    # pipe.execute()
     # import pandas as pd
     # # Load and prepare wikipedia documents
     # datasource = pd.read_csv(
@@ -120,12 +130,12 @@ def make_qna_chain(query):
     from langchain.chains import RetrievalQA
 
     # Create Redis Vector DB
-    redis = create_vectorstore()
+    redis_vb = create_vectorstore()
     # Create retreival QnA Chain
     chain = RetrievalQA.from_chain_type(
         llm=get_llm(),
         chain_type="stuff",
-        retriever=redis.as_retriever()
+        retriever=redis_vb.as_retriever()
     )
     answer=chain.run(query)
     return answer
