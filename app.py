@@ -1,172 +1,132 @@
 import os
-import ast
 # from urllib import request
-from apiflask.validators import Length,Range
-from apiflask import APIFlask, Schema, PaginationSchema,abort
-from apiflask.fields import Integer, String, Boolean, Date, List, Nested
-from flask_sqlalchemy import SQLAlchemy
-from flask import request
-
+from flask_cors import CORS,cross_origin
+from apiflask import APIFlask, Schema, PaginationSchema
+from apiflask.validators import Length, Range
+from apiflask.fields import Integer, String, List, Nested, File
 from dotenv import load_dotenv
+from werkzeug.utils import secure_filename
+from qna import llm
 
+# from v2 import process_load_document,fetch_responses_with_quest_id,process_request_thread
 # set openapi.info.title and openapi.info.version
 app = APIFlask(__name__,
-               title='LLM Extension', 
+               title='LLM Extension',
                version='1.0',
-               spec_path='/openapi.json', 
+               spec_path='/openapi.json',
                docs_path='/docs')
 
 # load .env if present
 load_dotenv()
+cors = CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type'
 
-# # the secret API key, plus we need a username in that record
-# API_TOKEN="{{'{0}':'appuser'}}".format(os.getenv('API_TOKEN'))
-# #convert to dict:
-# tokens=ast.literal_eval(API_TOKEN)
-
-# database URI
-DB2_URI=os.getenv('DB2_URI')
-# optional table arguments, e.g., to set another table schema
-ENV_TABLE_ARGS=os.getenv('TABLE_ARGS')
-TABLE_ARGS=None
-if ENV_TABLE_ARGS:
-    TABLE_ARGS=ast.literal_eval(ENV_TABLE_ARGS)
-
-
+hostip = os.getenv("HOSTIP")
+devport =  os.getenv("DEVPORT")
 app.config['SERVERS'] = [
     {
-        'description': 'Code Engine deployment',
-        'url': 'https://{appname}.{projectid}.{region}.codeengine.appdomain.cloud',
+        'description': 'LLM extension on IKS deployment',
+        'url': 'https://{hostip}:{devport}',
         'variables':
-        {
-            "appname":
             {
-                "default": "myapp",
-                "description": "application name"
-            },
-            "projectid":
-            {
-                "default": "projectid",
-                "description": "the Code Engine project ID"
-            },
-            "region":
-            {
-                "default": "us-south",
-                "description": "the deployment region, e.g., us-south"
+                "hostip":
+                    {
+                        "default": hostip,
+                        "description": "host ip"
+                    },
+                "devport":
+                    {
+                        "default": devport,
+                        "description": "host port"
+                    }
             }
-        }
     },
     {
         'description': 'local test',
-        'url': 'http://127.0.0.1:{port}',
+        'url': 'http://{host}:{port}',
         'variables':
-        {
-            'port':
             {
-                'default': "5000",
-                'description': 'local port to use'
+                 'host':
+                    {
+                        'default': "127.0.0.1",
+                        'description': 'local host to use'
+                    },
+                'port':
+                    {
+                        'default': "5000",
+                        'description': 'local port to use'
+                    }
+                    
             }
-        }
     }
 ]
 
-# configure SQLAlchemy
-app.config['SQLALCHEMY_DATABASE_URI']=DB2_URI
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# Initialize SQLAlchemy for our database
-db = SQLAlchemy(app)
-
 # sample records to be inserted after table recreation
-sample_events=[
+sample_events = [
     {
-        "first_name":"Drue",
-        "last_name": "Vanhorn",
-        "phone":"5558675309",
-        "security_word":"arrow",
-        "card_status": "APPROVED",
-        "pin": "5657",
-        "withdrawal_limit": "500"
+        "llmQuery": "Whati is kubernetes",
+        "response": "kubernetes"
     },
     {
-        "first_name":"Dylan",
-        "last_name": "Zucker",
-        "phone":"5551234567",
-        "security_word":"hammer",
-        "card_status": "IN PROCESS",
-        "pin": "9999",
-        "withdrawal_limit": "600"
+        "llmQuery": "what is pod",
+        "response": "pod is smallest unit of kubernetes"
     },
 
 ]
-
-
-# Schema for table "EVENTS"
-# Set default schema to "EVENTS"
-class EventModel(db.Model):
-    __tablename__ = 'EVENTS'
-    __table_args__ = TABLE_ARGS
-    qid = db.Column('QID',db.Integer, primary_key=True)
-    llmQuery = db.Column('LLMQUERY',db.String(2000))
-    response = db.Column('RESPONSE',db.String(2000))
 
 
 # the Python output for Events
 class EventOutSchema(Schema):
     qid = Integer()
-    llmQuery = String()
     response = String()
 
 
 # the Python input for Events
 class EventInSchema(Schema):
     llmQuery = String(required=True, validate=Length(0, 2000))
-    response = String(required=True, validate=Length(0, 2000))
+
 
 # use with pagination
 class EventQuerySchema(Schema):
+    qid = Integer(load_default=1)
     page = Integer(load_default=1)
     per_page = Integer(load_default=20, validate=Range(max=30))
+
 
 class EventsOutSchema(Schema):
     events = List(Nested(EventOutSchema))
     pagination = Nested(PaginationSchema)
 
 
-# (re-)create the event table with sample records
-@app.post('/database/recreate')
-@app.input({'confirmation': Boolean(load_default=False)}, location='query')
-#@app.output({}, 201)
-def create_database(query):
-    """Recreate the database schema
-    Recreate the database schema and insert sample data.
-    Request must be confirmed by passing query parameter.
-    """
-    if query['confirmation'] is True:
-        db.drop_all()
-        db.create_all()
-        for e in sample_events:
-            event = EventModel(**e)
-            db.session.add(event)
-        db.session.commit()
-    else:
-        abort(400, message='confirmation is missing',
-            detail={"error":"check the API for how to confirm"})
-        return {"message": "error: confirmation is missing"}
-    return {"message":"database recreated"}
+class QueryOutSchema(Schema):
+    code = String(required=True, validate=Length(0, 10))
+    response = String(required=True, validate=Length(0, 2000))
 
 
-@app.input(EventQuerySchema, 'query')
-@app.output(EventsOutSchema)
-@app.get('/query')
-def ai_response(query):
+# @app.input(EventQuerySchema,'query')
+@app.output(QueryOutSchema)
+@app.get('/query/qid/<int:qid>')
+@cross_origin()
+def ai_response(qid):
     """It will return o/p after each 30 sec if it is not fully processed.
     ```
     """
-    
-    return query
+    print("it is ai reponse return after each call")
+    res = llm.fetch_responses_with_quest_id(qid)
+    if res is None:
+        return {
+            'code': '202',
+            'response': 'Thank you for your patience,Fetching the response...',
+        }
+    return {
+        'code': '200',
+        'response': res,
+    }
+
 
 # default "homepage", also needed for health check by Code Engine
 @app.get('/')
+@cross_origin()
 def print_default():
     """ Greeting
     health check
@@ -174,36 +134,46 @@ def print_default():
     # returning a dict equals to use jsonify()
     return {'message': 'This is the Watson LLM Custom-Extension API server'}
 
+
 # @app.spec_processor
 @app.post('/query')
 @app.input(EventInSchema, location='json')
 @app.output(EventOutSchema, 201)
+@cross_origin()
 def input_query(data):
     """Insert a new event record
     Insert a new event record with the given attributes. Its new EID is returned.
     """
-    event = EventModel(**data)
-    # db.session.add(event)
-    # db.session.commit()
-    return event
+    print("Datat", data)
+    llmquery = data.get("llmQuery")
+    print("Query is:", llmquery)
+    answer = llm.make_qna_chain(llmquery)
+    print(answer)
+    return {
+        'output': answer,
+    }
 
+
+class FileUpload(Schema):
+    file = File()
 
 
 @app.post("/upload-file")
-def upload_file():
-    file = request.files["file"]
-    if file:
-        file_path = f"uploads/{file.filename}"
-        file.save(file_path)
-        return {"filename": file.filename, "path": file_path}
-    else:
-        return {"message": "No file provided."}, 400
-
-
+@app.input(FileUpload, location='files')
+@cross_origin()
+def upload_file(data):
+    f = data['file']
+    filename = secure_filename(f.filename)
+    # file_path=f.save(os.path.join("/uploads", filename))
+    file_path = f.save(filename)
+    print(file_path)
+    llm.process_load_document(os.path.abspath(filename))
+    return {'message': f'file {filename} saved.'}
 
 
 # Start the actual app
 # Get the PORT from environment or use the default
 port = os.getenv('PORT', '5000')
-if __name__ == "__main__":
-    app.run(host='0.0.0.0',port=int(port))
+
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=int(port))
